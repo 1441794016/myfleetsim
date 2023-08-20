@@ -1,6 +1,8 @@
 import dgl
 import numpy as np
 import torch
+from driver import Driver
+from order import Order
 
 class Road:
     def __init__(self, road_id, length, neighbor_road):
@@ -40,8 +42,30 @@ class City:
         """
         pass
 
+    def init_driver_distribution_test(self):
+        """
+        用于测试 每条路上初始化两个司机
+        :return:
+        """
+        i = 0
+        for road in self.roads:
+            road.driver.append(Driver(i))
+            i += 1
+            road.driver.append(Driver(i))
+            i += 1
+
     def init_order_distribution(self):
         pass
+
+    def init_order_distribution_test(self):
+        i = 0
+        for road in self.roads:
+            road.orders.append(Order(i))
+            i += 1
+            road.orders.append(Order(i))
+            i += 1
+            road.orders.append(Order(i))
+            i += 1
 
     def get_road_observation(self):
         """
