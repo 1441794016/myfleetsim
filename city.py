@@ -1,13 +1,14 @@
 import dgl
 import numpy as np
-
+import torch
 
 class Road:
     def __init__(self, road_id, length, neighbor_road):
         self.id = road_id
 
         self.length = length  # road 长度
-        self.driver = []
+        self.driver = []  # 该road上的driver
+        self.orders = []  # 该road上的order
         # self.controllable_driver = []  # 存放该road上可以接受导航决策车辆
         # self.uncontrollable_driver = []  # 存放该road上不需要进行导航决策的车辆
         self.traffic_congestion = 0  # 一个道路拥挤指标
@@ -20,6 +21,7 @@ class City:
         :param g: road graph
         """
         self.time_slot = 0  # 时隙计时
+        self.max_time_slot = 1440  # 最大的时隙
         self.road_graph = g
         self.road_nums = g.num_nodes()  # 路网图中节点个数，即道路的数量
         self.roads = []  # 该列表用于存放所有道路，元素是Road类型
@@ -33,8 +35,12 @@ class City:
 
     def init_driver_distribution(self):
         """
+        初始化，把driver分布到每一条road上
         :return:
         """
+        pass
+
+    def init_order_distribution(self):
         pass
 
     def get_road_observation(self):
@@ -42,7 +48,29 @@ class City:
         得到每条road的observation
         :return:
         """
-        pass
+        all_road_observation = np.zeros((self.road_nums, 12))
+        ########
+        # 暂定每个road的observation为12维
+        # 通过对地图上最大的邻居road数量计算，最大为5
+        # 邻居加上本身所在的road，共6条road
+        # 每个road的属性有拥挤程度和待服务的order数量
+        # 所以共12维
+        ########
+        for i in range(self.road_nums):
+            all_road_observation[i] = [len(self.roads[i].orders),
+                                       len(self.roads[self.roads[i].neighbor_road[0].item()].orders),
+                                       len(self.roads[self.roads[i].neighbor_road[1].item()].orders),
+                                       len(self.roads[self.roads[i].neighbor_road[2].item()].orders),
+                                       len(self.roads[self.roads[i].neighbor_road[3].item()].orders),
+                                       len(self.roads[self.roads[i].neighbor_road[4].item()].orders),
+                                       self.roads[i].traffic_congestion,
+                                       self.roads[self.roads[i].neighbor_road[0].item()].traffic_congestion,
+                                       self.roads[self.roads[i].neighbor_road[1].item()].traffic_congestion,
+                                       self.roads[self.roads[i].neighbor_road[2].item()].traffic_congestion,
+                                       self.roads[self.roads[i].neighbor_road[3].item()].traffic_congestion,
+                                       self.roads[self.roads[i].neighbor_road[4].item()].traffic_congestion]
+
+        return all_road_observation
 
     def assign_order(self):
         """
@@ -68,6 +96,7 @@ class City:
     def apply_policy(self, road, policy):
         """
         采取动作
+        :param road:
         :param policy:
         :return:
         """
@@ -76,12 +105,23 @@ class City:
                 driver.next_road_id = np.argmax(policy[driver.driver_id])  # 执行动作
                 driver.is_controllable = False
 
-    def step(self, policy):
+    def step(self, action):
         """
         执行动作，环境step
         :return:
         """
         for road in self.roads:
-            self.apply_policy(road, policy)
+            self.apply_policy(road, action)
+
+        r_n = self.assign_order()  # 进行订单分配,返回每条路上被分配的订单价格和
 
         self.time_slot += 1
+
+        if self.time_slot <= 1440:
+            done_n = False
+        else:
+            done_n = True
+
+        obs_next = self.update_road_status()  # 更新道路状态
+
+        return obs_next, r_n, done_n
