@@ -13,7 +13,7 @@ class Road:
         self.drivers = []  # 该road上的所有driver
         self.controllable_driver = []  # 存放该road上可以接受导航决策车辆
         self.uncontrollable_driver = []  # 存放该road上不需要进行导航决策的车辆
-        self.orders = []  # 该road上的order
+        self.orders = []  # 该road上的order(待接受的order)
         self.traffic_congestion = 0  # 一个道路拥挤指标
         self.neighbor_road = neighbor_road  # 存放该road 在 n=1 跳内可到达的road
 
@@ -105,18 +105,32 @@ class City:
         分配订单
         :return:
         """
-        total_income = np.zeros(self.road_nums)
-        for i in range(self.road_nums):
+        total_income = np.zeros(self.road_nums)  # 总收入,np数组
+        for road in self.roads:
             road_income = 0
-            assignable_order_number = len([x for x in self.roads[i].orders if x.is_accepted is False])
-            assignable_driver_number = len([x for x in self.roads[i].drivers if x.current_serving_order is None])
-            assignable_number = min(assignable_order_number, assignable_driver_number)
+            assignable_order_number = len(road.orders)  # 可以进行匹配的order数量
+            assignable_driver_number = len(road.drivers)  # 可以进行匹配的driver数量, 设定该条road上的没有接客的车都可以进行订单匹配
+            assignable_number = min(assignable_order_number, assignable_driver_number)  # 取两者最小值
+            road_order = road.orders  # 先把该road的order保存起来
             for j in range(assignable_number):
-                self.roads[i].drivers[j].assign_order(self.roads[i].orders[j])
-                road_income += self.roads[i].orders[j].price
-            total_income[i] = road_income
+                self.roads[road.id].drivers[j].assign_order(self.roads[road.id].orders[j])  # 进行订单匹配，把正在服务的订单加入该driver
+                road_order += self.roads[road.id].orders[j]
+            total_income[road.id] = road_order
 
         return total_income
+
+
+        # for i in range(self.road_nums):
+        #     road_income = 0
+        #     assignable_order_number = len([x for x in self.roads[i].orders if x.is_accepted is False])
+        #     assignable_driver_number = len([x for x in self.roads[i].drivers if x.current_serving_order is None])
+        #     assignable_number = min(assignable_order_number, assignable_driver_number)
+        #     for j in range(assignable_number):
+        #         self.roads[i].drivers[j].assign_order(self.roads[i].orders[j])
+        #         road_income += self.roads[i].orders[j].price
+        #     total_income[i] = road_income
+        #
+        # return total_income
         # for road in self.roads:
         #
         #     assignable_order_number = len([x for x in road.orders if x.is_accepted is False])
@@ -154,6 +168,13 @@ class City:
         采取动作后将driver的状态更新为下一个时隙开始时的状态
         :return:
         """
+        pass
+
+    def update_driver_status_new(self):
+        """
+        采取动作后将driver的状态更新为下一个时隙开始时的状态
+        :return:
+        """
         for driver in self.all_drivers:
             if driver.is_controllable is False:  # False表示该辆车已经给过指示了，假设driver将在时隙末到达目的地
                 driver.located_road = driver.next_road_index  # 在时隙末driver到达他的目的地
@@ -161,7 +182,7 @@ class City:
 
         for road in self.roads:
             for driver in road.uncontrollable_driver:
-                driver.located_road = driver.next_road_index
+                self.roads[road.id].drivers.located_road = driver.next_road_index
 
     def update_road_status(self):
         """
@@ -193,16 +214,19 @@ class City:
         # for road in self.roads:
         #     for driver in road.drivers:
         #         if driver.is_controllable is True:
-        i = 0
 
+        i = 0
         for road in self.roads:
-            i = 0
+            new_controllable_driver = road.controllable_driver
+            j = 0
             for driver in road.controllable_driver:
-                j = 0
+
                 next_road = np.random.choice(road.neighbor_road, p=action[i][j])
                 self.roads[i].controllable_driver[j].next_road_index = next_road.id
                 self.roads[i].uncontrollable_driver.append(self.roads[i].controllable_driver[j])
+                new_controllable_driver.pop(j)
                 j += 1
+            self.roads[i].controllable_driver = new_controllable_driver
             i += 1
 
     def step(self, action):
