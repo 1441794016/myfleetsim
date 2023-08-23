@@ -15,7 +15,7 @@ class Road:
         # self.controllable_driver = []  # 存放该road上可以接受导航决策车辆
         # self.uncontrollable_driver = []  # 存放该road上不需要进行导航决策的车辆
         self.orders = []  # 该road上出现过的所有order，包括待接收，已接受和已过期的订单
-        self.traffic_congestion = 0  # 一个道路拥挤指标
+        self.traffic_congestion = 10  # 一个道路拥挤指标
         self.neighbor_road = neighbor_road  # 存放该road 在 n=1 跳内可到达的road
 
     def number_of_orders_to_be_served(self):
@@ -81,12 +81,24 @@ class City:
         self.road_nums = g.num_nodes()  # 路网图中节点个数，即道路的数量
         self.roads = []  # 该列表用于存放所有道路，元素是Road类型
         self.all_drivers = []  # 存放所有车
+
         for i in range(self.road_nums):
             road_id = i
+            neigh = []
+            index = 0
+            for node_index in self.road_graph.edges()[0]:
+                if node_index.item() == i:
+                    neigh.append(self.road_graph.edges()[1][index].item())
+                index += 1
+
+            if len(neigh) < 5:
+                for j in range(5 - len(neigh)):
+                    neigh.append(float('-inf'))
+
             length = self.road_graph.ndata['length'][i]  # tensor类型
-            frontier = self.road_graph.sample_neighbors(i, -1)  # 查询节点i的所有一阶邻居
-            neighbor_road = frontier.edges()[0]  # tensor类型
-            self.roads.append(Road(road_id=road_id, length=length, neighbor_road=neighbor_road))
+            # frontier = self.road_graph.sample_neighbors(i, -1)  # 查询节点i的所有一阶邻居 有误！ 实际上得到的是是指向该点的点
+            # neighbor_road = frontier.edges()[0]  # tensor类型
+            self.roads.append(Road(road_id=road_id, length=length, neighbor_road=neigh))
 
     def init_driver_distribution(self):
         """
@@ -97,30 +109,28 @@ class City:
         for i in range(4):
             self.all_drivers.append(Driver(i))
 
-    def init_driver_distribution_test(self):
-        """
-        用于测试 每条路上初始化两个司机
-        :return:
-        """
-        i = 0
-        for road in self.roads:
-            road.drivers.append(Driver(i))
-            i += 1
-            road.drivers.append(Driver(i))
-            i += 1
-
     def init_order_distribution(self):
         pass
 
+    def init_driver_distribution_test(self):
+        """
+        在road 0 上初始化若干个司机
+        :return:
+        """
+        for i in range(4):
+            self.roads[0].drivers.append(Driver(i))
+
     def init_order_distribution_test(self):
-        i = 0
-        for road in self.roads:
-            road.orders.append(Order(i))
-            i += 1
-            road.orders.append(Order(i))
-            i += 1
-            road.orders.append(Order(i))
-            i += 1
+        """
+        在road 1 处初始化8个订单
+        在road 2 处初始化4个订单
+        :return:
+        """
+        for i in range(12):
+            if i <= 7:
+                self.roads[1].orders.append(Order(i))
+            else:
+                self.roads[2].orders.append(Order(i))
 
     def get_road_observation(self):
         """
@@ -135,21 +145,43 @@ class City:
         # 每个road的属性有拥挤程度和待服务的order数量
         # 所以共12维
         ########
+        observation = np.zeros((self.road_nums, 12))
         for i in range(self.road_nums):
-            all_road_observation[i] = [len(self.roads[i].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[0].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[1].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[2].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[3].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[4].item()].orders),
-                                       self.roads[i].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[0].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[1].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[2].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[3].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[4].item()].traffic_congestion]
+            inf_count = self.roads[i].neighbor_road.count(float('-inf'))
+            for j in range(6):
+                if j < 6 - inf_count:
+                    if j == 0:
+                        observation[i][j] = len([order for order in self.roads[i].orders if order.is_accepted is False])
+                        observation[i][j + 6] = self.roads[i].traffic_congestion
+                    else:
+                        observation[i][j] = len([order for order in self.roads[self.roads[i].neighbor_road[j - 1]].orders \
+                                                if order.is_accepted is False])
+                        observation[i][j + 6] = self.roads[self.roads[i].neighbor_road[0]].traffic_congestion
+                else:
+                    observation[i][j] = 0
+                    observation[i][j + 6] = 0
 
-        return all_road_observation
+        return observation
+
+            # all_road_observation[i] = [len([order for order in self.roads[i].orders if order.is_accepted is False]),
+            #                            len([order for order in self.roads[self.roads[i].neighbor_road[0]].orders \
+            #                                 if order.is_accepted is False]),
+            #                            len([order for order in self.roads[self.roads[i].neighbor_road[1]].orders \
+            #                                 if order.is_accepted is False]),
+            #                            len([order for order in self.roads[self.roads[i].neighbor_road[2]].orders \
+            #                                 if order.is_accepted is False]),
+            #                            len([order for order in self.roads[self.roads[i].neighbor_road[3]].orders \
+            #                                 if order.is_accepted is False]),
+            #                            len([order for order in self.roads[self.roads[i].neighbor_road[4]].orders \
+            #                                 if order.is_accepted is False]),
+            #                            self.roads[i].traffic_congestion,
+            #                            self.roads[self.roads[i].neighbor_road[0].item()].traffic_congestion,
+            #                            self.roads[self.roads[i].neighbor_road[1].item()].traffic_congestion,
+            #                            self.roads[self.roads[i].neighbor_road[2].item()].traffic_congestion,
+            #                            self.roads[self.roads[i].neighbor_road[3].item()].traffic_congestion,
+            #                            self.roads[self.roads[i].neighbor_road[4].item()].traffic_congestion]
+
+        #return all_road_observation
 
     def assign_order(self):
         """
@@ -190,7 +222,7 @@ class City:
                     # 如果有driver目前所在的road编号与所在的road不符，则需要更新
                     location_id = self.roads[road_index].drivers[driver_index].now_location_road
                     driver = self.roads[road_index].drivers[driver_index]
-                    self.roads[location_id].drivers.append(driver)  # 把driver更新到新的road上
+                    self.roads[int(location_id)].drivers.append(driver)  # 把driver更新到新的road上
                     delete_driver_index.append(driver_index)
 
             ######
@@ -200,6 +232,13 @@ class City:
                 index = index - counter
                 road_driver_list_temp.pop(index)
             self.roads[road_index].drivers = road_driver_list_temp
+
+    def generate_order(self):
+        """
+        生成order，将其分配在roads上
+        :return:
+        """
+        pass
 
     def reset(self):
         """
