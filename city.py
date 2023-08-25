@@ -83,21 +83,26 @@ class City:
         # 每个road的属性有拥挤程度和待服务的order数量
         # 所以共12维
         ########
+        observ = []
+        observation = np.zeros((self.road_nums, 12))
         for i in range(self.road_nums):
-            all_road_observation[i] = [len(self.roads[i].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[0].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[1].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[2].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[3].item()].orders),
-                                       len(self.roads[self.roads[i].neighbor_road[4].item()].orders),
-                                       self.roads[i].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[0].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[1].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[2].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[3].item()].traffic_congestion,
-                                       self.roads[self.roads[i].neighbor_road[4].item()].traffic_congestion]
+            inf_count = self.roads[i].neighbor_road.count(float('-inf'))
+            for j in range(6):
+                if j < 6 - inf_count:
+                    if j == 0:
+                        observation[i][j] = len([order for order in self.roads[i].orders if order.is_accepted is False])
+                        observation[i][j + 6] = self.roads[i].traffic_congestion
+                    else:
+                        observation[i][j] = len(
+                            [order for order in self.roads[self.roads[i].neighbor_road[j - 1]].orders \
+                             if order.is_accepted is False])
+                        observation[i][j + 6] = self.roads[self.roads[i].neighbor_road[0]].traffic_congestion
+                else:
+                    observation[i][j] = 0
+                    observation[i][j + 6] = 0
+            observ.append(observation[i])
 
-        return all_road_observation
+        return observ
 
     def assign_order(self):
         """
@@ -210,14 +215,22 @@ class City:
         执行动作，环境step
         :return:
         """
-        self.apply_action(action)
+        reward = self.apply_action(action)
+
+        self.update_driver_status()
+        self.update_road_status()
+        r = self.assign_order()  # 进行订单分配,返回每条路上被分配的订单价格和
+        r = reward + r
+        obs_next = self.get_road_observation()  # 更新道路状态
+        self.time_slot += 1
+
+        done_n = []
 
         if self.time_slot <= 1440:
-            done_n = False
+            for i in range(self.road_nums):
+                done_n.append(False)
         else:
-            done_n = True
+            for i in range(self.road_nums):
+                done_n.append(False)
 
-        r_n = self.assign_order()  # 进行订单分配,返回每条路上被分配的订单价格和
-        obs_next = self.update_road_status()  # 更新道路状态
-        self.time_slot += 1
-        return obs_next, r_n, done_n
+        return obs_next, r, done_n
