@@ -137,6 +137,7 @@ class City:
         得到每条road的observation
         :return:
         """
+        all_road_observation = []
         all_road_observation = np.zeros((self.road_nums, 12))
         ########
         # 暂定每个road的observation为12维
@@ -145,6 +146,7 @@ class City:
         # 每个road的属性有拥挤程度和待服务的order数量
         # 所以共12维
         ########
+        observ = []
         observation = np.zeros((self.road_nums, 12))
         for i in range(self.road_nums):
             inf_count = self.roads[i].neighbor_road.count(float('-inf'))
@@ -160,8 +162,9 @@ class City:
                 else:
                     observation[i][j] = 0
                     observation[i][j + 6] = 0
+            observ.append(observation[i])
 
-        return observation
+        return observ
 
             # all_road_observation[i] = [len([order for order in self.roads[i].orders if order.is_accepted is False]),
             #                            len([order for order in self.roads[self.roads[i].neighbor_road[0]].orders \
@@ -245,7 +248,16 @@ class City:
         reset 环境
         :return:
         """
-        pass
+        self.roads[0].orders.clear()
+        self.roads[1].orders.clear()
+        self.roads[2].orders.clear()
+        self.roads[0].drivers.clear()
+        self.roads[1].drivers.clear()
+        self.roads[2].drivers.clear()
+        self.init_driver_distribution_test()
+        self.init_order_distribution_test()
+        return self.get_road_observation()
+
 
     def apply_action(self, action):
         """
@@ -265,31 +277,50 @@ class City:
         #         if driver.is_controllable is True:
 
         i = 0
+        reward = np.zeros(self.road_nums)
         for road_index in range(self.road_nums):
             j = 0
+            number_of_driver_dispatched = 0
             for driver_index in range(len(self.roads[road_index].drivers)):
                 driver = self.roads[road_index].drivers[driver_index]
                 if driver.is_serving is False and driver.next_road is None:  # 对没接单且没有做出路径决策的车执行动作
-                    next_road = np.random.choice(self.roads[road_index].neighbor_road, p=action[i][j])
+                    # print("action:", action[i])
+                    # print("roads[road_index].neighbor_road", self.roads[road_index].neighbor_road)
+                    next_road = int(np.random.choice(self.roads[road_index].neighbor_road[0:2], p=action[i]))
+                    # next_road = int(np.random.choice(self.roads[road_index].neighbor_road, p=action[i][j]))
                     self.roads[road_index].drivers[driver_index].next_road = next_road
+                    reward[road_index] -= self.roads[next_road].traffic_congestion
                     j += 1
+                    number_of_driver_dispatched += 1
+            if number_of_driver_dispatched != 0:
+                reward[road_index] /= number_of_driver_dispatched
+            else:
+                reward[road_index] = 0
             i += 1
+
+        return reward
 
     def step(self, action):
         """
         执行动作，环境step
         :return:
         """
-        self.apply_action(action)
-
-        if self.time_slot <= 1440:
-            done_n = False
-        else:
-            done_n = True
+        reward = self.apply_action(action)
 
         self.update_driver_status()
         self.update_road_status()
         r = self.assign_order()  # 进行订单分配,返回每条路上被分配的订单价格和
+        r = reward + r
         obs_next = self.get_road_observation()  # 更新道路状态
         self.time_slot += 1
+
+        done_n = []
+
+        if self.time_slot <= 1440:
+            for i in range(self.road_nums):
+                done_n.append(False)
+        else:
+            for i in range(self.road_nums):
+                done_n.append(False)
+
         return obs_next, r, done_n
