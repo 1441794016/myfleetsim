@@ -10,10 +10,26 @@ import dgl
 import time
 from agent import GCN
 
+
 def print_neighbor_road(city):
     for road in city.roads:
         print(road)
         print(road.neighbor_road)
+
+
+# 获取参数
+def compare_mode(model1, model2):
+    for p1, p2 in zip(model1.parameters(), model2.parameters()):
+        if not np.array_equal(p1.detach().numpy(), p2.detach().numpy()):
+            print("Parameters are not equal.")
+            return False
+    print("Parameters are equal.")
+    return True
+    # 比较两个模型是否参数相同
+
+
+
+
 
 num_episodes = 150000
 episode_length = 1  # 每条序列的最大长度
@@ -75,6 +91,9 @@ plt_epi = []
 max_return = float('-inf')
 
 
+# torch.save(maddpg.gnn, 'gnn.pth')
+# model1 = torch.load('gnn.pth')
+
 # gcn_output = gcn_model(state)
 
 
@@ -113,9 +132,16 @@ for i_episode in range(num_episodes):
                     for aa in rearranged
                 ]
 
+
+
+
             sample = [stack_array(x) for x in sample]
             for a_i in range(3):
                 maddpg.update(sample, a_i)
+
+            # model2 = maddpg.gnn
+            # compare_mode(model1, model2)
+
             maddpg.update_all_targets()
 
 

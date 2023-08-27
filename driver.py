@@ -1,13 +1,14 @@
 class Driver:
     def __init__(self, driver_id):
         self.id = driver_id
-        self.is_online = True
-        self.located_road = 0  # 该driver所在的road编号
-        self.is_controllable = True  # 是否由agent给出下一个要去的道路 即目前是否可以控制
-        self.is_serving_order = False  # 是否接受了order
-        self.next_road
-        self.next_road_index = 0  # 如果agent给出了决策，表示将要去的下一条路；0表示留在本条路
-        self.current_serving_order = None  # 目前为哪个订单提供服务，没有则为None
+        self.is_serving = False  # 该driver是否已经匹配里订单 且还没完成订单
+        self.serving_order = None  # 目前正在服务的订单，没有则为None，有则为Order类型
+        self.destination = None  # 目的地，只有再serving_order不为None时才有效，实际上是所接受订单的目的地，用road编号表示
 
-    def assign_order(self, order):
-        self.current_serving_order = order
+        self.now_location_road = None  # 目前所在哪条road, 用road编号表示
+        self.next_road = None  # 下一个要去的临近的road，为None表示还没有给出决策，否则用road编号表示
+
+    def order_match(self, order):
+        self.serving_order = order
+        self.is_serving = True
+        self.destination = order.end_road
