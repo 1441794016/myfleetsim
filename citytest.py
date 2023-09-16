@@ -109,13 +109,13 @@ class City:
         for road in self.roads:
             road_income = 0
             assignable_order_number = len(road.orders)  # 可以进行匹配的order数量
-            assignable_driver_number = len(road.drivers)  # 可以进行匹配的driver数量, 设定该条road上的没有接客的车都可以进行订单匹配
+            assignable_driver_number = len(road.controllable_driver + road.uncontrollable_driver)  # 可以进行匹配的driver数量, 设定该条road上的没有接客的车都可以进行订单匹配
             assignable_number = min(assignable_order_number, assignable_driver_number)  # 取两者最小值
             road_order = road.orders  # 先把该road的order保存起来
             for j in range(assignable_number):
                 self.roads[road.id].drivers[j].assign_order(self.roads[road.id].orders[j])  # 进行订单匹配，把正在服务的订单加入该driver
-                road_order += self.roads[road.id].orders[j]
-            total_income[road.id] = road_order
+                road_income += self.roads[road.id].orders[j]
+            total_income[road.id] = road_income
 
         return total_income
 
