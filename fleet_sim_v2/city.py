@@ -76,7 +76,7 @@ class Road:
 
 
 class City:
-    def __init__(self, g):
+    def __init__(self, g, use_gnn):
         """
         :param g: road graph
         """
@@ -87,6 +87,7 @@ class City:
         self.roads = []  # 该列表用于存放所有道路，元素是Road类型
         self.all_drivers = []  # 存放所有车
         self.diction = None
+        self.use_gnn = use_gnn
 
         for i in range(self.road_nums):
             road_id = i
@@ -97,8 +98,8 @@ class City:
                     neigh.append(self.road_graph.edges()[1][index].item())
                 index += 1
 
-            if len(neigh) < 3:
-                for j in range(3 - len(neigh)):
+            if len(neigh) < 4:
+                for j in range(4 - len(neigh)):
                     neigh.append(float('-inf'))
 
             length = self.road_graph.ndata['length'][i]  # tensor类型
@@ -132,12 +133,12 @@ class City:
         :return:
         """
         for i in range(12):
-            if i <= 7:
-                self.roads[3].orders.append(Order(i))
-            elif i <= 9:
+            if i < 2:
                 self.roads[4].orders.append(Order(i))
-            else:
+            elif i < 4:
                 self.roads[5].orders.append(Order(i))
+            else:
+                self.roads[3].orders.append(Order(i))
 
     def init_travel_time_test(self):
         # self.roads[0].travel_time_to_neighbor_road = [10, 0, 0, 0, 0, 0]
@@ -148,20 +149,50 @@ class City:
         # self.roads[5].travel_time_to_neighbor_road = [360, 360, 360, 360, 0, 0]
         # self.roads[6].travel_time_to_neighbor_road = [10, 360, 10, 0, 0, 0]
         # self.roads[7].travel_time_to_neighbor_road = [360, 10, 0, 0, 0, 0]
-        self.roads[0].travel_time_to_neighbor_road = [10, 0, 0, ]
-        self.roads[1].travel_time_to_neighbor_road = [10, 3000, 10]
-        self.roads[2].travel_time_to_neighbor_road = [3000, 0, 0]
-        self.roads[3].travel_time_to_neighbor_road = [3000, 0, 0]
-        self.roads[4].travel_time_to_neighbor_road = [3000, 10, 0]
-        self.roads[5].travel_time_to_neighbor_road = [3000, 0, 0]
+        
+        self.roads[0].travel_time_to_neighbor_road = [10, 0, 0, 0]
+        self.roads[1].travel_time_to_neighbor_road = [10, 3000, 10, 0]
+        self.roads[2].travel_time_to_neighbor_road = [10, 3000, 0, 0]
+        self.roads[3].travel_time_to_neighbor_road = [3000, 3000, 3000, 0]
+        self.roads[4].travel_time_to_neighbor_road = [10, 3000, 10, 0]
+        self.roads[5].travel_time_to_neighbor_road = [3000, 10, 0, 0]
 
+        # self.roads[0].travel_time_to_neighbor_road = [100, 50, 0, 0]
+        # self.roads[1].travel_time_to_neighbor_road = [100, 80, 3000, 80]
+        # self.roads[2].travel_time_to_neighbor_road = [70, 3000, 0, 0]
+        # self.roads[3].travel_time_to_neighbor_road = [3000, 3000, 3000, 0]
+        # self.roads[4].travel_time_to_neighbor_road = [90, 100, 3000, 50]
+        # self.roads[5].travel_time_to_neighbor_road = [3000, 80, 60, 0]
+        # self.roads[6].travel_time_to_neighbor_road = [60, 60, 0, 0]
+
+        # self.roads[0].travel_time_to_neighbor_road = [10, 10, 10, 0]
+        # self.roads[1].travel_time_to_neighbor_road = [10, 0, 0, 10]
+        # self.roads[2].travel_time_to_neighbor_road = [10, 60000, 0, 0]
+        # self.roads[3].travel_time_to_neighbor_road = [60000, 10, 10, 10]
+        # self.roads[4].travel_time_to_neighbor_road = [10, 10, 10, 0]
+        # self.roads[5].travel_time_to_neighbor_road = [10, 10, 10, 10]
+        # self.roads[6].travel_time_to_neighbor_road = [10, 10, 0, 0]
+        # self.roads[7].travel_time_to_neighbor_road = [10, 10, 0, 0]
+        # self.roads[8].travel_time_to_neighbor_road = [10, 10, 0, 0]
+        # self.roads[9].travel_time_to_neighbor_road = [10, 10, 0, 0]
     def init_diction(self):
         # self.diction = {0: {1: 10}, 1: {0: 10, 2: 10, 5: 360, 6: 10}, 2: {1: 10, 3: 10, 4: 10},
         #                 3: {2: 10, 4: 10}, 4: {2: 10, 3: 10, 5: 360}, 5: {1: 360, 4: 360, 6: 360, 7: 360},
         #                 6: {1: 10, 5: 360, 7: 10}, 7: {5: 360, 6: 10}}
-        self.diction = {0: {1: 10}, 1: {2: 10, 3: 3000, 4: 10}, 2: {3: 3000},
-                        3: {4: 3000}, 4: {3: 3000, 5: 10}, 5: {3: 3000},
+        # self.diction = {0: {1: 10}, 1: {2: 10, 3: 3000, 4: 10}, 2: {3: 3000},
+        #                 3: {4: 3000}, 4: {3: 3000, 5: 10}, 5: {3: 3000},
+        #                 }
+        self.diction = {0: {1: 10}, 1: {2: 10, 3: 3000, 4: 10}, 2: {1: 10, 3: 3000},
+                         3: {1: 3000, 2: 3000, 4: 3000}, 4: {1: 10, 3: 3000, 5: 10}, 5: {3: 3000, 4: 10}
                         }
+        # self.diction = {0: {1: 100, 4: 50}, 1: {0: 100, 2: 80, 3: 3000, 4: 80}, 2: {1: 70, 3: 3000},
+        #                  3: {1: 3000, 2: 3000, 5: 3000}, 4: {0: 90, 1: 100, 5: 3000, 6: 50}, 5: {3: 3000, 4: 80, 6: 60},
+        #                  6: {4: 60, 5: 60}
+        #                 }
+        # self.diction = {0: {1: 10, 2: 10, 8: 10}, 1: {0: 10}, 2: {0: 10, 3: 60000, 9: 10},
+        #                 3: {2: 60000, 5: 10, 7: 10, 8: 10, }, 4: {5: 10, 6: 10, 9: 10}, 5: {3: 10, 4: 10, 6: 10, 7: 10},
+        #                 6: {4: 10, 5: 10}, 7: {3: 10, 5: 10}, 8: {0: 10, 3: 10}, 9: {2: 10, 4: 10}
+        #                 }
     def init_traffic_distribution_test(self):
         """
         初始化道路的交通状况
@@ -174,24 +205,50 @@ class City:
 
     def get_road_observation_test(self):
         observ = []
-        observation = np.zeros((self.road_nums, 5))
-        for road_index in range(self.road_nums):
-            # 第一维为road上可用车辆的数量
-            observation[road_index][0] = len([driver for driver in self.roads[road_index].drivers
-                                              if driver.is_serving == False and driver.next_road == None])
-            # 第二维为road上order的数量
-            observation[road_index][1] = len([order for order in self.roads[road_index].orders
-                                              if order.is_accepted == False and order.is_overdue == False])
-            # 剩下维度表示到相邻的区域的时间
-            inf_count = self.roads[road_index].neighbor_road.count(float('-inf'))
-            for j in range(3):
-                if j < 3 - inf_count:
-                    observation[road_index][j + 2] = self.diction[road_index][self.roads[road_index].neighbor_road[j]]
-                    # a = self.roads[self.roads[road_index].neighbor_road[j]].travel_time_to_neighbor_road[j]
-                else:
-                    observation[road_index][j + 2] = 0
-            observ.append(observation[road_index])
-
+        if self.use_gnn:
+            observation = np.zeros((self.road_nums, 6))  # 使用gnn的话把节点状态设置为6维
+            for road_index in range(self.road_nums):
+                # 第一维为road上可用车辆的数量
+                observation[road_index][0] = float(len([driver for driver in self.roads[road_index].drivers
+                                                if driver.is_serving == False and driver.next_road == None]))
+                # 第二维为road上order的数量
+                observation[road_index][1] = float(len([order for order in self.roads[road_index].orders
+                                                if order.is_accepted == False and order.is_overdue == False]))
+                # 剩下维度表示到相邻的区域的时间
+                inf_count = self.roads[road_index].neighbor_road.count(float('-inf'))
+                
+                for j in range(4):
+                    if j < 4 - inf_count:  
+                        observation[road_index][j + 2] = float(self.diction[road_index][self.roads[road_index].neighbor_road[j]])
+                        # a = self.roads[self.roads[road_index].neighbor_road[j]].travel_time_to_neighbor_road[j]
+                    else:
+                        observation[road_index][j + 2] = 0.0
+                observ.append(observation[road_index])
+        else:
+            observation = np.zeros((self.road_nums, 10))  # 不使用gnn的话 把状态设置为10维，相比使用gnn多了临近4个区域的未接订单数
+            for road_index in range(self.road_nums):
+                # 第一维为road上可用车辆的数量
+                observation[road_index][0] = float(len([driver for driver in self.roads[road_index].drivers
+                                                if driver.is_serving == False and driver.next_road == None]))
+                # 第二维为road上order的数量
+                observation[road_index][1] = float(len([order for order in self.roads[road_index].orders
+                                                if order.is_accepted == False and order.is_overdue == False]))
+                # 剩下维度表示到相邻的区域的时间
+                inf_count = self.roads[road_index].neighbor_road.count(float('-inf'))
+                
+                for j in range(4):
+                    if j < 4 - inf_count:  
+                        # print("j", j)
+                        # print("road_index:", road_index)
+    
+                        observation[road_index][j + 2] = float(self.diction[road_index][self.roads[road_index].neighbor_road[j]])
+                        observation[road_index][j + 4] = float(len([order for order in (self.roads[self.roads[road_index].neighbor_road[j]]).orders if order.is_accepted == False and\
+                                                        order.is_overdue == False]))
+                        # a = self.roads[self.roads[road_index].neighbor_road[j]].travel_time_to_neighbor_road[j]
+                    else:
+                        observation[road_index][j + 2] = 0.0
+                        observation[road_index][j + 4] = 0.0
+                observ.append(observation[road_index])
         return observ
 
     def assign_order(self):
@@ -293,10 +350,12 @@ class City:
                 if driver.is_serving == False and driver.next_road == None:  # 对没接单且没有做出路径决策的车执行动作
                     # print("action:", action[i])
                     # print("roads[road_index].neighbor_road", self.roads[road_index].neighbor_road)
-                    next_road = int(np.random.choice(self.roads[road_index].neighbor_road[0:3], p=action[i]))
+                    next_road = int(np.random.choice(self.roads[road_index].neighbor_road, p=action[i]))
+                    next_road_free_order_number = len([order for order in self.roads[next_road].orders if order.is_accepted == False and order.is_overdue == False])
                     # next_road = int(np.random.choice(self.roads[road_index].neighbor_road, p=action[i][j]))
                     self.roads[road_index].drivers[driver_index].next_road = next_road
                     reward[road_index] -= self.diction[road_index][next_road]
+                    reward[road_index] += next_road_free_order_number * 300
                     self.roads[road_index].drivers[driver_index].source = road_index
                     j += 1
                     number_of_driver_dispatched += 1

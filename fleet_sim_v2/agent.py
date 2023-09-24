@@ -78,14 +78,15 @@ class DDPG:
         #     print("train state:", state)
         # else:
         #     print("eva state:", state)
+
         action = self.actor(state)
         ava = self.avaliable_action
 
         if explore:
             action = gumbel_softmax(action, ava, temperature=1.0)
         else:
-            action = action * ava
-            action = onehot_from_logits(action)
+            
+            action = onehot_from_logits(action, ava, is_used_in_gumbel_softmax=False, eps=0.0)
 
         return action.detach().cpu().numpy()[0]
 
@@ -130,11 +131,16 @@ class MADDPG:  ## 对每个agent都维护一个DDPG算法
         # print(states)
         # print(self.env.road_nums)
 
-        states = [
-            torch.unsqueeze(states[i], 0).clone().detach().requires_grad_(True).to(self.device)
-            for i in range(self.env.road_nums)
-        ]
-
+        if self.use_gnn:
+            states = [
+                torch.unsqueeze(states[i], 0).clone().detach().requires_grad_(True).to(self.device)
+                for i in range(self.env.road_nums)
+            ]
+        else:
+            states = [
+                (torch.unsqueeze(states[i], 0)).to(self.device).to(torch.float) for i in range(self.env.road_nums)
+            ]
+        
         #####
         # states 形状为 [[],[],[]]的列表，里面的元素为tensor，shape为[1,state size]
         ####
@@ -168,21 +174,25 @@ class MADDPG:  ## 对每个agent都维护一个DDPG算法
                 obs_features[batch_index, agent] = obs[agent][batch_index]
                 next_obs_features[batch_index, agent] = next_obs[agent][batch_index]
 
-        obs_features = obs_features.to(self.device)
-        next_obs_features = next_obs_features.to(self.device)
+        obs_features = obs_features.permute(1, 0, 2).to(self.device)
+        next_obs_features = next_obs_features.permute(1, 0, 2).to(self.device)  # 6 * 1025 * state_dim
 
-        obs_embedding = torch.zeros(batch_size, (len(self.agents)), self.gnn.n_classes)
-        next_obs_embedding = torch.zeros(batch_size, (len(self.agents)), self.gnn.n_classes)
-        for index in range(batch_size):
-            obs_embedding[index] = self.gnn(obs_features[index])
-            next_obs_embedding[index] = self.gnn(next_obs_features[index])
-
-        obs_embedding = obs_embedding.permute(1, 0, 2)
-        next_obs_embedding = next_obs_embedding.permute(1, 0, 2)
+        # obs_embedding = torch.zeros(batch_size, (len(self.agents)), self.gnn.n_classes)
+        # next_obs_embedding = torch.zeros(batch_size, (len(self.agents)), self.gnn.n_classes)
+        # t2 = time.time()
+        # print("数据处理耗时:", t2 - t1)
+        # t1 = time.time()
+        # for index in range(batch_size):
+        #     obs_embedding[index] = self.gnn(obs_features[index])
+        #     next_obs_embedding[index] = self.gnn(next_obs_features[index])
+        # t2 = time.time()
+        # print("gnn 耗时:", t2 - t1)
+        obs_embedding = self.gnn(obs_features)
+        next_obs_embedding = self.gnn(next_obs_features)
 
         for agent in range(len(self.agents)):
-            new_obs[agent] = obs_embedding[agent].to(self.device)
-            new_next_obs[agent] = next_obs_embedding[agent].to(self.device)
+            new_obs[agent] = obs_embedding[agent]
+            new_next_obs[agent] = next_obs_embedding[agent]
 
         return new_obs, new_next_obs
 
@@ -194,13 +204,13 @@ class MADDPG:  ## 对每个agent都维护一个DDPG算法
             obs_ = obs
             next_obs_ = next_obs
         cur_agent = self.agents[i_agent]
-
+        
         cur_agent.critic_optimizer.zero_grad()
         all_target_act = [
-            onehot_from_logits(pi(_next_obs), self.agents[i].avaliable_action, False)
+            onehot_from_logits(pi(_next_obs).cpu(), self.agents[i].avaliable_action, False).to(self.device)
             for i, pi, _next_obs in zip([i for i in range(len(self.agents))], self.target_policies, next_obs_)
         ]
-        # print("all:", len(all_target_act))
+
         target_critic_input = torch.cat((*next_obs, *all_target_act), dim=1)
         target_critic_value = rew[i_agent].view(
             -1, 1) + self.gamma * cur_agent.target_critic(
@@ -209,21 +219,23 @@ class MADDPG:  ## 对每个agent都维护一个DDPG算法
         critic_value = cur_agent.critic(critic_input)
         critic_loss = self.critic_criterion(critic_value,
                                             target_critic_value.detach())
+
         critic_loss.backward()
         cur_agent.critic_optimizer.step()
 
         cur_agent.actor_optimizer.zero_grad()
         cur_actor_out = cur_agent.actor(obs_[i_agent])
-        cur_act_vf_in = gumbel_softmax(cur_actor_out, self.agents[i_agent].avaliable_action)
+        cur_act_vf_in = gumbel_softmax(cur_actor_out.cpu(), self.agents[i_agent].avaliable_action.cpu()).to(self.device)
         all_actor_acs = []
         for i, (pi, _obs) in enumerate(zip(self.policies, obs_)):
             if i == i_agent:
                 all_actor_acs.append(cur_act_vf_in)
             else:
-                all_actor_acs.append(onehot_from_logits(pi(_obs), self.agents[i].avaliable_action, False))
+                all_actor_acs.append(onehot_from_logits(pi(_obs).cpu(), self.agents[i].avaliable_action, False).to(self.device))
         vf_in = torch.cat((*obs, *all_actor_acs), dim=1)
         actor_loss = -cur_agent.critic(vf_in).mean()
         actor_loss += (cur_actor_out ** 2).mean() * 1e-3
+
         actor_loss.backward()
         cur_agent.actor_optimizer.step()
 

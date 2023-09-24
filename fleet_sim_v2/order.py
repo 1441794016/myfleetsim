@@ -1,5 +1,5 @@
 class Order:
-    def __init__(self, order_id, price=70, start_road=None, end_road=None):
+    def __init__(self, order_id, price=700, start_road=None, end_road=None):
         self.id = order_id
         self.is_accepted = False  # 该订房是否已被driver接受的标志 False表示还没有被接受
         self.is_overdue = False  # 该订单是否因为长久未被接受而过期 False表示还未过期
